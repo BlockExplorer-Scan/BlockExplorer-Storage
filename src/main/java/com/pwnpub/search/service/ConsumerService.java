@@ -142,7 +142,7 @@ public class ConsumerService {
                                 .field("transactionIndex", transactionEntity.getTransactionIndex())
                                 .field("transactionIndexRaw", transactionEntity.getTransactionIndexRaw())
                                 .field("v", transactionEntity.getV())
-                                .field("value", transactionEntity.getValue())
+                                .field("valueStr", transactionEntity.getValue())
                                 .field("valueRaw", transactionEntity.getValueRaw())
                                 .field("timestamp", String.valueOf(currentTimeMillis / 1000))
                                 .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(currentTimeMillis))
