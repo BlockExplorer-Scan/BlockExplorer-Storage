@@ -37,6 +37,15 @@ public class ERC20Entity {
     private long transactionIndex;
     private String transactionIndexRaw;
     private List<String> topics;
+    private String timestamp;
+
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
 
     public String getAddress() {
         return address;

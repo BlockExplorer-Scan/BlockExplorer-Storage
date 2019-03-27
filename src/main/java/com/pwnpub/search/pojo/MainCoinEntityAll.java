@@ -33,6 +33,15 @@ public class MainCoinEntityAll {
     private String value;//
     private String transactionHash;//
     private Integer blockNumber;//
+    private String timestamp;
+
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
 
     public String getFrom() {
         return from;
