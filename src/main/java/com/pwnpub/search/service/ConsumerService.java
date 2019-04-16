@@ -2,7 +2,10 @@ package com.pwnpub.search.service;
 
 import com.google.gson.Gson;
 import com.pwnpub.search.config.CoinName;
-import com.pwnpub.search.pojo.*;
+import com.pwnpub.search.pojo.BlockEntityAllUpdate;
+import com.pwnpub.search.pojo.ERC20Entity;
+import com.pwnpub.search.pojo.MainCoinEntityAll;
+import com.pwnpub.search.pojo.TransactionEntityAll;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexResponse;
@@ -12,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.jms.Message;
 import javax.jms.TextMessage;
@@ -23,16 +27,19 @@ import java.text.SimpleDateFormat;
  * @date 2018-12-06 3:40 PM
  * @desc MQ消费者服务
  */
+@Transactional
 @Service
 public class ConsumerService {
 
     private static final Logger logger = LogManager.getLogger(ConsumerService.class);
 
-    public static final String BLOCK_MESSAGE = "block_message"; //区块
-    public static final String TRANSACION_MESSAGE = "transaction_message"; //外部交易
+    public static final String BLOCK_MESSAGE = "block_message_new"; //区块
+    public static final String TRANSACION_MESSAGE = "transaction_message_new"; //外部交易
     public static final String DEBUG_TRACE_TRANSACTION = "debug_traceTransaction";   //暂时不存储
-    public static final String ETH_GET_TRANSACION_RECEIPT_LOG = "eth_get_transaction_receipt_log"; //erc20
+    public static final String ETH_GET_TRANSACION_RECEIPT_LOG = "eth_get_transaction_receipt_log_new"; //erc20
     public static final String TRACE_TRANSACTION = "trace_transaction";  // 主币内部转账
+    public static final String CALL_TRACER = "call_tracer_new";  // 监听主币内部转账 maincoin
+    public static final String INTERNAL_TRANSACTION_MESSAGE = "internal_transaction_message_new";  // 监听主币内部转账 maincoin
 
     @Autowired
     private TransportClient client;
@@ -40,7 +47,7 @@ public class ConsumerService {
     @Autowired
     private CoinName coinName;
 
-    @JmsListener(destination = "block_message") // 监听指定消息队列
+    @JmsListener(destination = BLOCK_MESSAGE) // 监听指定消息队列
     public void receiveBlock(Message message) {
         // 判断消息类型是TextMessage
         if (message instanceof TextMessage) {
@@ -87,7 +94,7 @@ public class ConsumerService {
                                 .field("uncles", blockEntity.getUncles())     //数组
                                 .endObject())
                 {
-                    IndexResponse response = client.prepareIndex("block","data")
+                    IndexResponse response = client.prepareIndex("block_new","data")
                             .setSource(content)
                             .get();
 
@@ -96,16 +103,17 @@ public class ConsumerService {
 
                 }catch (IOException e){
                     e.printStackTrace();
+                    throw new RuntimeException("[Block存入ES发生异常]，该区块消息开始回滚至MQ队列...");
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
-                return;
+                throw new RuntimeException("[Block存入ES发生异常]，该区块消息开始回滚至MQ队列...");
             }
         }
     }
 
-    @JmsListener(destination = "transaction_message") // 监听指定消息队列
+    @JmsListener(destination = TRANSACION_MESSAGE) // 监听指定消息队列
     public void receiveTransaction(Message message) {
         // 判断消息类型是TextMessage
         if (message instanceof TextMessage) {
@@ -120,6 +128,8 @@ public class ConsumerService {
                 TransactionEntityAll transactionEntity = gson.fromJson(text, TransactionEntityAll.class);
 
                 long currentTimeMillis = System.currentTimeMillis();
+                String timestampStr = transactionEntity.getTimestamp();
+                long timestamp = Long.parseLong(timestampStr);
 
                 try (
                         XContentBuilder content = XContentFactory.jsonBuilder().startObject()
@@ -145,30 +155,32 @@ public class ConsumerService {
                                 .field("valueStr", transactionEntity.getValue())
                                 .field("valueRaw", transactionEntity.getValueRaw())
                                 //.field("timestamp", String.valueOf(currentTimeMillis / 1000))
-                                .field("timestamp", Integer.valueOf(transactionEntity.getTimestamp()) / 1000)
-                                .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(transactionEntity.getTimestamp()))
+                                .field("timestamp", timestamp / 1000)
+                                .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(timestamp))
                                 .field("status","OUT")
                                 .field("gasUsed", transactionEntity.getGasUsed())
                                 .endObject())
                 {
-                    IndexResponse response = client.prepareIndex("transaction","data")
+                    IndexResponse response = client.prepareIndex("transaction_new","data")
                             .setSource(content)
                             .get();
                     logger.info("[OuterTransaction]存入ES成功....");
 
                 }catch (IOException e){
                     logger.error("【存入交易异常】：", e.getMessage());
+                    throw new RuntimeException("[外部交易存入ES时发生异常]，该区块消息开始回滚至MQ队列...");
                 }
 
 
 
             } catch (Exception e) {
                 e.printStackTrace();
+                throw new RuntimeException("[外部交易存入ES时发生异常]，该区块消息开始回滚至MQ队列...");
             }
         }
     }
 
-    @JmsListener(destination = "internal_transaction_message") // 监听指定消息队列
+    @JmsListener(destination = INTERNAL_TRANSACTION_MESSAGE) // 监听指定消息队列
     public void receiveInternalTransaction(Message message) {
         // 判断消息类型是TextMessage
         if (message instanceof TextMessage) {
@@ -184,6 +196,9 @@ public class ConsumerService {
                 TransactionEntityAll transactionEntity = gson.fromJson(text, TransactionEntityAll.class);
 
                 long currentTimeMillis = System.currentTimeMillis();
+                String timestampStr = transactionEntity.getTimestamp();
+                long timestamp = Long.parseLong(timestampStr);
+                logger.info("[内部交易时间戳]：" + timestamp);
 
                 try (
                         XContentBuilder content = XContentFactory.jsonBuilder().startObject()
@@ -209,29 +224,31 @@ public class ConsumerService {
                                 .field("value", transactionEntity.getValue())
                                 .field("valueRaw", transactionEntity.getValueRaw())
                                 //.field("timestamp", String.valueOf(currentTimeMillis / 1000))
-                                .field("timestamp", Integer.valueOf(transactionEntity.getTimestamp())/1000)
-                                .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(transactionEntity.getTimestamp()))
+                                .field("timestamp", timestamp/1000)
+                                .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(timestamp))
                                 .field("status","IN")
                                 .field("gasUsed", transactionEntity.getGasUsed())
                                 .endObject())
                 {
-                    IndexResponse response = client.prepareIndex("transaction","data")
+                    IndexResponse response = client.prepareIndex("transaction_new","data")
                             .setSource(content)
                             .get();
                     logger.info("[Internal Transaction]存入ES成功....");
 
                 }catch (IOException e){
                     e.printStackTrace();
+                    throw new RuntimeException("[内部交易存入ES发生异常]，该区块消息开始回滚至MQ队列...");
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
+                throw new RuntimeException("[内部交易存入ES发生异常]，该区块消息开始回滚至MQ队列...");
             }
         }
     }
 
 
-    @JmsListener(destination = "eth_get_transaction_receipt_log") // 监听ERC20
+    @JmsListener(destination = ETH_GET_TRANSACION_RECEIPT_LOG) // 监听ERC20
     public void receiveERC20(Message message) {
         // 判断消息类型是TextMessage
         if (message instanceof TextMessage) {
@@ -244,6 +261,9 @@ public class ConsumerService {
 
                 Gson gson = new Gson();
                 ERC20Entity  erc20Entity = gson.fromJson(text, ERC20Entity.class);
+                String timestampStr = erc20Entity.getTimestamp();
+                long timestamp = Long.parseLong(timestampStr);
+                logger.info("[ERC20转账记录]时间戳为：" + timestamp);
 
                 if (erc20Entity.getTopics().size() == 3 && erc20Entity.getTopics().get(0).equals("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")) {
                     String keccak = erc20Entity.getTopics().get(0);
@@ -271,10 +291,10 @@ public class ConsumerService {
                                     .field("transactionIndexRaw", erc20Entity.getTransactionIndexRaw())
                                     .field("status", coinName.getErc20())
                                     //.field("timestamp", System.currentTimeMillis())
-                                    .field("timestamp", erc20Entity.getTimestamp())
+                                    .field("timestamp", timestamp)
                                     .endObject())
                     {
-                        IndexResponse response = client.prepareIndex("erc20","data")
+                        IndexResponse response = client.prepareIndex("erc20_new","data")
                                 .setSource(content)
                                 .get();
 
@@ -283,6 +303,8 @@ public class ConsumerService {
 
                     }catch (IOException e){
                         e.printStackTrace();
+                        //TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                        throw new RuntimeException("[ERC20Token Transfer存入ES发生异常]，该区块消息开始回滚至MQ队列...");
                     }
 
                 } else {
@@ -305,10 +327,10 @@ public class ConsumerService {
                                     .field("transactionIndexRaw", erc20Entity.getTransactionIndexRaw())
                                     .field("status", "other")
                                     //.field("timestamp", System.currentTimeMillis())
-                                    .field("timestamp", erc20Entity.getTimestamp())
+                                    .field("timestamp", timestamp)
                                     .endObject())
                     {
-                        IndexResponse response = client.prepareIndex("erc20","data")
+                        IndexResponse response = client.prepareIndex("erc20_new","data")
                                 .setSource(content)
                                 .get();
 
@@ -317,19 +339,18 @@ public class ConsumerService {
 
                     }catch (IOException e){
                         e.printStackTrace();
+                        throw new RuntimeException("[ERC20Token Transfer存入ES发生异常]，该区块消息开始回滚至MQ队列...");
                     }
                 }
 
-
-
             } catch (Exception e) {
                 e.printStackTrace();
-                return;
+                throw new RuntimeException("[ERC20Token Transfer存入ES发生异常]，该区块消息开始回滚至MQ队列...");
             }
         }
     }
 
-    @JmsListener(destination = "call_tracer") // 监听主币内部转账 maincoin
+    @JmsListener(destination = CALL_TRACER) // 监听主币内部转账 maincoin
     public void receiveTraceTransaction(Message message) {
         // 判断消息类型是TextMessage
         if (message instanceof TextMessage) {
@@ -342,6 +363,10 @@ public class ConsumerService {
 
                 Gson gson = new Gson();
                 MainCoinEntityAll mainCoinEntity = gson.fromJson(text, MainCoinEntityAll.class);
+                String timestampStr = mainCoinEntity.getTimestamp();
+                long timestamp = Long.parseLong(timestampStr);
+                logger.info("[主币内部转账时间戳]：" + timestamp);
+
 
                 try (
                         XContentBuilder content = XContentFactory.jsonBuilder().startObject()
@@ -357,10 +382,10 @@ public class ConsumerService {
                                 .field("outLen", mainCoinEntity.getOutLen())
                                 .field("outOff", mainCoinEntity.getOutOff())
                                 .field("status", coinName.getMaincoin())
-                                .field("timestamp",mainCoinEntity.getTimestamp())
+                                .field("timestamp",timestamp)
                                 .endObject())
                 {
-                    IndexResponse response = client.prepareIndex("maincoin","data")
+                    IndexResponse response = client.prepareIndex("maincoin_new","data")
                             .setSource(content)
                             .get();
 
@@ -369,11 +394,11 @@ public class ConsumerService {
 
                 }catch (IOException e){
                     e.printStackTrace();
-                }
+                    throw new RuntimeException("[主币内部转账存入ES发生异常]，该区块消息开始回滚至MQ队列...");                }
 
             } catch (Exception e) {
                 e.printStackTrace();
-                return;
+                throw new RuntimeException("[主币内部转账存入ES发生异常]，该区块消息开始回滚至MQ队列...");
             }
         }
     }

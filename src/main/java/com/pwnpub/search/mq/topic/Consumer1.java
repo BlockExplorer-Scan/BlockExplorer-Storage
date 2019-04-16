@@ -13,7 +13,7 @@ public class Consumer1 {
 
     public static void main(String[] args) throws Exception {
         // 1. 创建ActiveMQConnectionFactory连接工厂，需要ActiveMQ的服务地址，使用的是tcp协议
-        String brokerURL = "tcp://47.107.123.218:61616";
+        String brokerURL = "tcp://localhost:61616";
         ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory(brokerURL);
 
         // 2. 使用连接工厂创建连接

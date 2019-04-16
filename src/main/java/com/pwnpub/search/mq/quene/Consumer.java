@@ -29,7 +29,7 @@ public class Consumer {
 
         // 5. 从session获取消息类型Destination（模式（队列还是订阅），对应的名称），获取queue（名称为myqueue）
         // 参数就是设置队列名称
-        Queue queue = session.createQueue("block_message");
+        Queue queue = session.createQueue("test_exception");
 
         // 6. 从session中获取消息的消费者
         MessageConsumer consumer = session.createConsumer(queue);
@@ -59,8 +59,20 @@ public class Consumer {
                 if (message instanceof TextMessage) {
                     // 如果是，则进行强转
                     TextMessage textMessage = (TextMessage) message;
-                    System.out.println(textMessage);
-                    System.out.println("测试队列。。。。。。");
+
+                    try {
+                        // 8. 消费消息，打印消息内容
+                        String text = textMessage.getText();
+                        Integer value = Integer.valueOf(text);
+                        int i = value / 0;
+
+
+                    } catch (Exception e) {
+
+                        e.printStackTrace();
+                        throw new RuntimeException("遇到异常回滚");
+                    }
+
                 }
             }
         });

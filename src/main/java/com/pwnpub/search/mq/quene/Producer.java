@@ -14,7 +14,7 @@ public class Producer {
 
     public static void main(String[] args) throws Exception {
         // 1. 创建ActiveMQConnectionFactory连接工厂，需要ActiveMQ的服务地址，使用的是tcp协议
-        String brokerURL = "tcp://120.79.194.72:61616";
+        String brokerURL = "tcp://localhost:61616";
         ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory(brokerURL);
 
         // 2. 使用连接工厂创建连接
@@ -30,7 +30,7 @@ public class Producer {
 
         // 5. 从session获取消息类型Destination（模式（队列还是订阅），对应的名称），获取queue（名称为myqueue）
         // 参数就是设置队列名称
-        Queue queue = session.createQueue("myqueue");
+        Queue queue = session.createQueue("test_exception");
 
         // 6. 从session中获取消息的生产者
         MessageProducer producer = session.createProducer(queue);
@@ -38,7 +38,7 @@ public class Producer {
         // 7. 创建消息体 使用TextMessage类型
         TextMessage textMessage = new ActiveMQTextMessage();
         // 设置消息的内容
-        textMessage.setText("今天是3月1号");
+        textMessage.setText("今天是3月3号");
 
         // 8. 使用消息的生产者发送消息
         producer.send(textMessage);
