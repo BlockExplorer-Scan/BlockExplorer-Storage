@@ -40,6 +40,7 @@ public class ConsumerService {
     public static final String TRACE_TRANSACTION = "trace_transaction";  // 主币内部转账
     public static final String CALL_TRACER = "call_tracer_new";  // 监听主币内部转账 maincoin
     public static final String INTERNAL_TRANSACTION_MESSAGE = "internal_transaction_message_new";  // 监听主币内部转账 maincoin
+    public static final String TRANSACION_MESSAGE_FAIL = "transaction_message_fail_new";
 
     @Autowired
     private TransportClient client;
@@ -113,8 +114,12 @@ public class ConsumerService {
         }
     }
 
-    @JmsListener(destination = TRANSACION_MESSAGE) // 监听指定消息队列
-    public void receiveTransaction(Message message) {
+    /**
+     * 失败的交易 status：Fail
+     * @param message
+     */
+    @JmsListener(destination = TRANSACION_MESSAGE_FAIL) // 监听指定消息队列
+    public void receiveFailedTransaction(Message message) {
         // 判断消息类型是TextMessage
         if (message instanceof TextMessage) {
             // 如果是，则进行强转
@@ -122,12 +127,11 @@ public class ConsumerService {
             try {
                 // 8. 消费消息，打印消息内容
                 String text = textMessage.getText();
-                logger.info("消费方监听到的【外部交易】消息为" + text);
+                logger.info("消费方监听到的【失败交易】消息为" + text);
 
                 Gson gson = new Gson();
                 TransactionEntityAll transactionEntity = gson.fromJson(text, TransactionEntityAll.class);
 
-                long currentTimeMillis = System.currentTimeMillis();
                 String timestampStr = transactionEntity.getTimestamp();
                 long timestamp = Long.parseLong(timestampStr);
 
@@ -154,7 +158,73 @@ public class ConsumerService {
                                 .field("v", transactionEntity.getV())
                                 .field("valueStr", transactionEntity.getValue())
                                 .field("valueRaw", transactionEntity.getValueRaw())
-                                //.field("timestamp", String.valueOf(currentTimeMillis / 1000))
+                                .field("timestamp", timestamp / 1000)
+                                .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(timestamp))
+                                .field("status","Fail")
+                                .field("gasUsed", transactionEntity.getGasUsed())
+                                .endObject())
+                {
+                    IndexResponse response = client.prepareIndex("transaction_new","data")
+                            .setSource(content)
+                            .get();
+                    logger.info("[失败的交易]存入ES成功....");
+
+                }catch (IOException e){
+                    logger.error("【存入失败的交易异常】：", e.getMessage());
+                    throw new RuntimeException("[失败的交易]存入ES时发生异常，该区块消息开始回滚至MQ队列...");
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new RuntimeException("[失败交易存入ES时发生异常]，该交易开始回滚至MQ队列...");
+            }
+        }
+    }
+
+    /**
+     * 成功的交易 status：OUT
+     * @param message
+     */
+    @JmsListener(destination = TRANSACION_MESSAGE) // 监听指定消息队列
+    public void receiveTransaction(Message message) {
+        // 判断消息类型是TextMessage
+        if (message instanceof TextMessage) {
+            // 如果是，则进行强转
+            TextMessage textMessage = (TextMessage) message;
+            try {
+                // 8. 消费消息，打印消息内容
+                String text = textMessage.getText();
+                logger.info("消费方监听到的【外部交易】消息为" + text);
+
+                Gson gson = new Gson();
+                TransactionEntityAll transactionEntity = gson.fromJson(text, TransactionEntityAll.class);
+
+                String timestampStr = transactionEntity.getTimestamp();
+                long timestamp = Long.parseLong(timestampStr);
+
+                try (
+                        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+                                .field("blockHash", transactionEntity.getBlockHash())
+                                .field("blockNumber", transactionEntity.getBlockNumber())
+                                .field("blockNumberRaw", transactionEntity.getBlockNumberRaw())
+                                .field("chainId", transactionEntity.getChainId())
+                                .field("from", transactionEntity.getFrom())
+                                .field("to", transactionEntity.getTo())
+                                .field("gas", transactionEntity.getGas())
+                                .field("gasPrice", transactionEntity.getGasPrice())
+                                .field("gasPriceRaw", transactionEntity.getGasPriceRaw())
+                                .field("gasRaw", transactionEntity.getGasRaw())
+                                .field("hash", transactionEntity.getHash())
+                                .field("input", transactionEntity.getInput())
+                                .field("nonce", transactionEntity.getNonce())
+                                .field("nonceRaw", transactionEntity.getNonceRaw())
+                                .field("r", transactionEntity.getR())
+                                .field("s", transactionEntity.getS())
+                                .field("transactionIndex", transactionEntity.getTransactionIndex())
+                                .field("transactionIndexRaw", transactionEntity.getTransactionIndexRaw())
+                                .field("v", transactionEntity.getV())
+                                .field("valueStr", transactionEntity.getValue())
+                                .field("valueRaw", transactionEntity.getValueRaw())
                                 .field("timestamp", timestamp / 1000)
                                 .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(timestamp))
                                 .field("status","OUT")
@@ -180,6 +250,10 @@ public class ConsumerService {
         }
     }
 
+    /**
+     * @status：IN
+     * @param message
+     */
     @JmsListener(destination = INTERNAL_TRANSACTION_MESSAGE) // 监听指定消息队列
     public void receiveInternalTransaction(Message message) {
         // 判断消息类型是TextMessage
@@ -195,7 +269,6 @@ public class ConsumerService {
                 Gson gson = new Gson();
                 TransactionEntityAll transactionEntity = gson.fromJson(text, TransactionEntityAll.class);
 
-                long currentTimeMillis = System.currentTimeMillis();
                 String timestampStr = transactionEntity.getTimestamp();
                 long timestamp = Long.parseLong(timestampStr);
                 logger.info("[内部交易时间戳]：" + timestamp);
@@ -223,7 +296,6 @@ public class ConsumerService {
                                 .field("v", transactionEntity.getV())
                                 .field("value", transactionEntity.getValue())
                                 .field("valueRaw", transactionEntity.getValueRaw())
-                                //.field("timestamp", String.valueOf(currentTimeMillis / 1000))
                                 .field("timestamp", timestamp/1000)
                                 .field("timestampDay", new SimpleDateFormat("yyyy-MM-dd").format(timestamp))
                                 .field("status","IN")
