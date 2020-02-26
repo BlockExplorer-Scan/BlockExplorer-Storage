@@ -7,9 +7,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-27 5:56 PM
- * @desc
+ * @desc 测试定时任务
  */
 
 public class TestTask {

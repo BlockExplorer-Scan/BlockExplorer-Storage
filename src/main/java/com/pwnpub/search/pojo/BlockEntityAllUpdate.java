@@ -3,9 +3,9 @@ package com.pwnpub.search.pojo;
 import java.util.List;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-30 4:28 PM
- * @desc
+ * @desc 区块实体类
  */
 public class BlockEntityAllUpdate {
 

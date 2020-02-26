@@ -5,7 +5,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import javax.jms.*;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-23 12:48 AM
  * @desc 消费者
  */

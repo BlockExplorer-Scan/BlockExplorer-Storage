@@ -15,7 +15,7 @@ import javax.jms.*;
 import java.io.IOException;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-23 12:48 AM
  * @desc 消费者
  */

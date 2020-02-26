@@ -1,7 +1,7 @@
 package com.pwnpub.search.pojo;
 
 /**
- * @author soobeenwong
+ *
  * @date 2019-01-08 5:10 PM
  * @desc 新-主币内部转账
  */

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.text.SimpleDateFormat;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-12-17 4:21 PM
  * @desc
  */

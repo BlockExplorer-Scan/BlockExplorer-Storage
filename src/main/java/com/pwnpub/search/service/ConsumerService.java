@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-12-06 3:40 PM
  * @desc MQ消费者服务
  */

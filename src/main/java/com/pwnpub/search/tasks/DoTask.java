@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.Future;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-27 5:40 PM
- * @desc
+ * @desc 定时任务类
  */
 @Component
 public class DoTask {

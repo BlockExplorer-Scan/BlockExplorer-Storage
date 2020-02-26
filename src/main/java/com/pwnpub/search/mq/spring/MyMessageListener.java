@@ -8,7 +8,7 @@ import javax.jms.MessageListener;
 import javax.jms.TextMessage;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-23 1:16 AM
  * @desc 监听mq服务
  */

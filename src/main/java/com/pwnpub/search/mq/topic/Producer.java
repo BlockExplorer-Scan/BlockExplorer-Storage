@@ -6,7 +6,7 @@ import org.apache.activemq.command.ActiveMQTextMessage;
 import javax.jms.*;
 
 /**
- * @author soobeenwong
+ *
  * @date 2018-11-23 12:54 AM
  * @desc 生产者
  */
